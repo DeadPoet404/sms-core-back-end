@@ -212,3 +212,190 @@ model StaffProfile {
 
   @@index([tenantId])
 }
+
+
+// 1. Core Framework Enums required by the form inputs
+enum UserRole {
+  SuperAdmin
+  SchoolAdmin
+  Teacher
+  Staff        // Added to match general administrative personnel
+  Student
+  Parent
+  Accountant
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+}
+
+enum ShiftSchedule {
+  MORNING
+  EVENING
+  NIGHT
+}
+
+enum StaffStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+// 2. Comprehensive Personnel Layout
+model StaffProfile {
+  id                 String          @id @default(uuid())
+  firstName          String
+  lastName           String
+  phoneNumber        String?
+  specialization     String[]
+  
+  // Demographics Matrix
+  dateOfBirth        DateTime?
+  gender             Gender?
+  residentialAddress String?
+  
+  // Institutional Placement
+  departmentId       String          @default("General")
+  jobTitle           String
+  employmentType     EmploymentType  @default(FULL_TIME)
+  shiftSchedule      ShiftSchedule   @default(MORNING)
+  status             StaffStatus     @default(ACTIVE)
+  hireDate           DateTime        @default(now())
+  
+  // Ghanaian Statutory Compliance
+  nationalId         String?         // Ghana Card Token
+  ssnitNumber        String?         // Social Security Registry ID
+  emergencyContact   Json?           // Structured metadata field: { name, phone }
+  
+  // Compensation & Treasury Operations
+  clearanceTier      String?
+  baseSalary         Decimal         @default(0.00) @db.Decimal(10, 2)
+  bankName           String?
+  bankAccount        String?
+  salaryBalance      Decimal         @default(0.00) @db.Decimal(10, 2)
+  attendanceRate     Decimal         @default(100.00) @db.Decimal(5, 2)
+  performanceRating  Decimal         @default(5.00) @db.Decimal(3, 2)
+  workloadHours      Int             @default(0)
+
+  // Relational Integrity Locks
+  userId             String          @unique
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId           String
+  tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([tenantId])
+}
+
+
+enum StudentStatus {
+  ACTIVE
+  PROBATION
+  SUSPENDED
+  GRADUATED
+  DEPARTED
+}
+
+model Student {
+  id                 String         @id @default(uuid())
+  studentId          String         @unique // Institutional display code (e.g., STU-45129)
+  firstName          String
+  lastName           String
+  status             StudentStatus  @default(ACTIVE)
+  major              String?        // e.g., Science, Arts, Business
+  
+  // Real-time Analytical Cache Performance Layers (For high-speed table filtering)
+  attendanceRate     Decimal        @default(100.00) @db.Decimal(5, 2)
+  currentGpa         Decimal        @default(4.00)   @db.Decimal(3, 2)
+  overallAverage     Decimal        @default(100.00) @db.Decimal(5, 2)
+  classRank          Int            @default(1)
+  feeBalance         Decimal        @default(0.00)   @db.Decimal(10, 2) // Consolidated balance cache
+
+  // Structural Classroom Relationships
+  classSectionId     String
+  classSection       ClassSection   @relation(fields: [classSectionId], references: [id])
+  
+  // Guardian Information Map
+  guardians          StudentGuardian[]
+
+  // Multi-Tenant Isolation Boundaries
+  tenantId           String
+  tenant             Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+// Join Model supporting structured many-to-many relationship mappings for guardians
+model StudentGuardian {
+  id              String   @id @default(uuid())
+  studentId       String
+  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  name            String
+  relationship    String   // Father, Mother, Guardian, Uncle etc.
+  phone           String
+  email           String?
+  isPrimaryContact Boolean  @default(true)
+
+  @@index([studentId])
+}
+
+enum LeaveType {
+  SICK
+  FAMILY_EMERGENCY
+  PERSONAL
+  ACADEMIC
+  RELIGIOUS
+  OTHER
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model StudentLeaveRequest {
+  id              String      @id @default(uuid())
+  type            LeaveType
+  startDate       DateTime
+  endDate         DateTime
+  reason          String      @db.Text
+  documentUrl     String?     // Secure storage link for uploaded certificates/letters
+  status          LeaveStatus @default(PENDING)
+  
+  // Auditing & Review Tracking Layers
+  rejectionReason String?     @db.Text // Context note if an administrator denies the request
+  reviewedAt      DateTime?
+  reviewedById    String?     // Links to the staff profile of the reviewer
+  reviewedBy      StaffProfile? @relation(fields: [reviewedById], references: [id])
+
+  // Core Relational Ownership Links
+  studentId       String
+  student         Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  // Multi-Tenant Isolation Boundary
+  tenantId        String
+  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([studentId])
+  @@index([tenantId])
+  @@index([status])
+}
