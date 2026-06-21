@@ -1,0 +1,214 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  SuperAdmin
+  SchoolAdmin
+  Teacher
+  Student
+  Parent
+  Accountant
+}
+
+enum InvoiceStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+// ==========================================
+// CORE SYSTEM ARCHITECTURE (Multi-Tenancy)
+// ==========================================
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users            User[]
+  classes          ClassSection[]
+  students         Student[]
+  staff            StaffProfile[]
+  invoices         FeeInvoice[]
+  timetableLayouts TimetableMatrix[]
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         UserRole
+  isActive     Boolean  @default(true)
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  studentProfile Student?
+  staffProfile   StaffProfile?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+// ==========================================
+// ACADEMIC STRUCTURES
+// ==========================================
+
+model ClassSection {
+  id         String @id @default(uuid())
+  name       String
+  gradeLevel String
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  students   Student[]
+  timetables TimetableMatrix[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model Student {
+  id          String @id @default(uuid())
+  admissionNo String @unique
+  firstName   String
+  lastName    String
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  classId      String
+  classSection ClassSection @relation(fields: [classId], references: [id])
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  invoices FeeInvoice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([classId])
+}
+
+model StaffProfile {
+  id             String   @id @default(uuid())
+  firstName      String
+  lastName       String
+  phoneNumber    String?
+  specialization String[]
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+// ==========================================
+// FINANCIAL LEDGER SYSTEM
+// ==========================================
+
+model FeeInvoice {
+  id          String        @id @default(uuid())
+  description String
+  totalAmount Decimal       @db.Decimal(10, 2)
+  paidAmount  Decimal       @default(0.00) @db.Decimal(10, 2)
+  status      InvoiceStatus @default(PENDING)
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  items FeeItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([studentId])
+}
+
+model FeeItem {
+  id     String  @id @default(uuid())
+  name   String
+  amount Decimal @db.Decimal(10, 2)
+
+  invoiceId String
+  invoice   FeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+// ==========================================
+// TIMETABLE STRUCTURE (UI-Aligned JSON)
+// ==========================================
+
+model TimetableMatrix {
+  id String @id @default(uuid())
+
+  classId      String       @unique
+  classSection ClassSection @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  configMatrix Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+enum StaffStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+model StaffProfile {
+  id                String       @id @default(uuid())
+  firstName         String
+  lastName          String
+  phoneNumber       String?
+  specialization    String[]
+  
+  // New HR Extensions to fit staff/page.tsx
+  department        String       @default("General")
+  status            StaffStatus  @default(ACTIVE)
+  attendanceRate    Decimal      @default(100.00) @db.Decimal(5, 2)
+  performanceRating Decimal      @default(5.00)   @db.Decimal(3, 2)
+  workloadHours     Int          @default(0)
+  hireDate          DateTime     @default(now())
+  salaryBalance     Decimal      @default(0.00)   @db.Decimal(10, 2)
+  
+  userId            String       @unique
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  tenantId          String
+  tenant            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([tenantId])
+}
